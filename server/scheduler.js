@@ -119,7 +119,9 @@ export function createScheduler({ db, stakeClient, scoreClient, sseHub, logger }
       startTime: fixture.startTime ?? null,
       tournament: fixture.tournament ?? config.stakeTournament,
       category: fixture.category ?? config.stakeCategory,
-      competitors: fixture.competitors ?? [],
+      // Snapshot competitors are localized for the UI. Keep them out of the
+      // scheduler seed so score matching can fall back to the raw English name.
+      competitors: [],
       homeScore: fixture.homeScore ?? null,
       awayScore: fixture.awayScore ?? null,
       score: fixture.score ?? null

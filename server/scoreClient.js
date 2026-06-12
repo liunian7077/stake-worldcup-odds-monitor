@@ -58,7 +58,7 @@ function competitorName(value) {
 function parseTeamsFromFixture(fixture) {
   const competitors = fixture?.competitors ?? [];
   const names = competitors.map(competitorName).filter(Boolean);
-  if (names.length >= 2) {
+  if (names.length >= 2 && names.slice(0, 2).every((name) => normalizeTeamName(name))) {
     return [names[0], names[1]];
   }
 
