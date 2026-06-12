@@ -118,6 +118,15 @@ function scoreChanged(previous, next) {
   );
 }
 
+function summarizeFetchError(error) {
+  return {
+    name: error?.name ?? "Error",
+    message: error?.message ?? String(error),
+    code: error?.code ?? error?.cause?.code ?? null,
+    cause: error?.cause?.message ?? null
+  };
+}
+
 export class WorldCupScoreClient {
   constructor({ logger }) {
     this.logger = logger;
@@ -129,7 +138,7 @@ export class WorldCupScoreClient {
   async refresh() {
     const url = new URL("/get/games", config.scoreApiBase);
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), config.requestTimeoutMs);
+    const timeout = setTimeout(() => controller.abort(), config.scoreApiTimeoutMs);
 
     try {
       const response = await fetch(url, {
@@ -163,9 +172,10 @@ export class WorldCupScoreClient {
       this.lastError = null;
       return { ok: true, games: next.size, at: this.lastSuccessAt };
     } catch (error) {
-      this.lastError = { message: error.message, at: new Date().toISOString() };
-      this.logger.warn({ err: error }, "failed to refresh world cup score feed");
-      return { ok: false, error };
+      const summary = summarizeFetchError(error);
+      this.lastError = { ...summary, at: new Date().toISOString() };
+      this.logger.warn({ error: summary }, "failed to refresh world cup score feed");
+      return { ok: false, error: summary };
     } finally {
       clearTimeout(timeout);
     }
@@ -223,7 +233,8 @@ export class WorldCupScoreClient {
       baseUrl: config.scoreApiBase,
       cachedGames: this.gamesByExactKey.size,
       lastSuccessAt: this.lastSuccessAt,
-      lastError: this.lastError?.message ?? null
+      lastError: this.lastError?.message ?? null,
+      lastErrorAt: this.lastError?.at ?? null
     };
   }
 }

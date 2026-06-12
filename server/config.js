@@ -34,6 +34,10 @@ const stakeApiBase =
   process.env.STAKE_ODDS_API_BASE ??
   "https://odds-data.stake.com";
 
+const requestTimeoutMs = readInt("REQUEST_TIMEOUT_MS", 15_000);
+const scoreApiConfiguredIntervalMs = readInt("SCORE_API_INTERVAL_MS", 15_000);
+const scoreApiMinIntervalMs = readInt("SCORE_API_MIN_INTERVAL_MS", 10_000);
+
 export const config = {
   projectRoot,
   nodeEnv: process.env.NODE_ENV ?? "development",
@@ -54,7 +58,11 @@ export const config = {
 
   scoreProvider: process.env.SCORE_PROVIDER ?? "worldcup26",
   scoreApiBase: process.env.SCORE_API_BASE_URL ?? "https://worldcup26.ir",
-  scoreApiIntervalMs: readInt("SCORE_API_INTERVAL_MS", 15_000),
+  scoreApiConfiguredIntervalMs,
+  scoreApiMinIntervalMs,
+  scoreApiIntervalMs: Math.max(scoreApiConfiguredIntervalMs, scoreApiMinIntervalMs),
+  scoreApiTimeoutMs: readInt("SCORE_API_TIMEOUT_MS", Math.min(requestTimeoutMs, 8_000)),
+  scoreApiBackoffMs: [10_000, 30_000, 60_000],
 
   databasePath: resolveProjectPath(databasePathRaw),
 
@@ -75,7 +83,7 @@ export const config = {
   // Fetch queue.
   requestConcurrency: readInt("REQUEST_CONCURRENCY", 2),
   requestDelayMs: readInt("DEFAULT_REQUEST_DELAY_MS", readInt("REQUEST_DELAY_MS", 450)),
-  requestTimeoutMs: readInt("REQUEST_TIMEOUT_MS", 15_000),
+  requestTimeoutMs,
   retryBackoffMs: [5_000, 15_000, 30_000],
   maxFixtures: readInt("MAX_FIXTURES", readInt("MAX_FIXTURES_PER_POLL", 64)),
 

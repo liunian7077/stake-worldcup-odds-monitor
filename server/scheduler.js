@@ -102,11 +102,59 @@ export function createScheduler({ db, stakeClient, scoreClient, sseHub, logger }
   let listRefreshInFlight = false;
   let lastScoreRefreshAt = 0;
   let scoreRefreshInFlight = false;
+  let scoreRetryCount = 0;
+  let scoreBackoffUntil = 0;
   let watchedSlug = null;
   let roundChanges = 0;
   let totalChanges = 0;
   let lastSuccessAt = null;
   let lastScoreSuccessAt = null;
+
+  function fixtureFromSnapshot(fixture) {
+    return {
+      slug: fixture.slug,
+      stakeFixtureId: fixture.stakeFixtureId ?? fixture.id ?? null,
+      name: fixture.rawName ?? fixture.name ?? fixture.slug,
+      status: fixture.status ?? null,
+      startTime: fixture.startTime ?? null,
+      tournament: fixture.tournament ?? config.stakeTournament,
+      category: fixture.category ?? config.stakeCategory,
+      competitors: fixture.competitors ?? [],
+      homeScore: fixture.homeScore ?? null,
+      awayScore: fixture.awayScore ?? null,
+      score: fixture.score ?? null
+    };
+  }
+
+  function ensureStateFromDatabase(slug) {
+    const snapshot = db.getSnapshot(0);
+    const fixture = snapshot.fixtures.find((item) => item.slug === slug);
+    if (!fixture || fixture.phase === PHASE.ENDED) {
+      return null;
+    }
+
+    const state = ensureState(fixtureFromSnapshot(fixture));
+    scheduleNext(state);
+    return state;
+  }
+
+  function seedActiveFixturesFromDatabase() {
+    const snapshot = db.getSnapshot(0);
+    let seeded = 0;
+
+    for (const fixture of snapshot.fixtures) {
+      if (!fixture.slug || fixture.phase === PHASE.ENDED || fixtures.has(fixture.slug)) {
+        continue;
+      }
+      const state = ensureState(fixtureFromSnapshot(fixture));
+      scheduleNext(state);
+      seeded += 1;
+    }
+
+    if (seeded > 0) {
+      logger.info({ fixtures: seeded }, "scheduler seeded active fixtures from database");
+    }
+  }
 
   function ensureState(fixture) {
     let state = fixtures.get(fixture.slug);
@@ -178,7 +226,13 @@ export function createScheduler({ db, stakeClient, scoreClient, sseHub, logger }
   }
 
   async function refreshScores() {
-    if (!scoreClient || config.scoreProvider === "off" || scoreRefreshInFlight) {
+    const now = Date.now();
+    if (
+      !scoreClient ||
+      config.scoreProvider === "off" ||
+      scoreRefreshInFlight ||
+      scoreBackoffUntil > now
+    ) {
       return;
     }
 
@@ -187,9 +241,17 @@ export function createScheduler({ db, stakeClient, scoreClient, sseHub, logger }
       const result = await scoreClient.refresh();
       lastScoreRefreshAt = Date.now();
       if (!result.ok) {
+        scoreRetryCount += 1;
+        const wait =
+          config.scoreApiBackoffMs[
+            Math.min(scoreRetryCount - 1, config.scoreApiBackoffMs.length - 1)
+          ];
+        scoreBackoffUntil = Date.now() + wait;
         return;
       }
 
+      scoreRetryCount = 0;
+      scoreBackoffUntil = 0;
       lastScoreSuccessAt = result.at;
       const scoreChanges = [];
       for (const state of fixtures.values()) {
@@ -346,7 +408,7 @@ export function createScheduler({ db, stakeClient, scoreClient, sseHub, logger }
       refreshFixtureList().catch(() => {});
     }
 
-    if (now - lastScoreRefreshAt >= config.scoreApiIntervalMs) {
+    if (scoreBackoffUntil <= now && now - lastScoreRefreshAt >= config.scoreApiIntervalMs) {
       refreshScores().catch(() => {});
     }
 
@@ -385,7 +447,7 @@ export function createScheduler({ db, stakeClient, scoreClient, sseHub, logger }
       return { ok: true, watched: null };
     }
 
-    const state = fixtures.get(slug);
+    const state = fixtures.get(slug) ?? ensureStateFromDatabase(slug);
     if (!state) {
       return { ok: false, error: "unknown fixture" };
     }
@@ -399,6 +461,7 @@ export function createScheduler({ db, stakeClient, scoreClient, sseHub, logger }
     if (tickTimer) {
       return;
     }
+    seedActiveFixturesFromDatabase();
     refreshFixtureList().catch(() => {});
     tickTimer = setInterval(tick, config.schedulerTickMs);
   }
@@ -439,6 +502,12 @@ export function createScheduler({ db, stakeClient, scoreClient, sseHub, logger }
       lowFreqCount: lowFreq,
       watched: watchedSlug,
       score: scoreClient?.getStatus?.() ?? null,
+      scoreIntervalMs: config.scoreApiIntervalMs,
+      scoreConfiguredIntervalMs: config.scoreApiConfiguredIntervalMs,
+      scoreMinIntervalMs: config.scoreApiMinIntervalMs,
+      scoreTimeoutMs: config.scoreApiTimeoutMs,
+      scoreRetryCount,
+      scoreBackoffUntil: scoreBackoffUntil || null,
       lastScoreRefreshAt: lastScoreRefreshAt || null,
       lastScoreSuccessAt,
       fixtures: [...fixtures.values()].map((state) => ({
