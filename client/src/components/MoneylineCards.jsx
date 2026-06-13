@@ -1,19 +1,9 @@
-import { TrendingDown, TrendingUp } from "lucide-react";
 import { oddsKey } from "../lib/api.js";
 import { formatOdds } from "../lib/format.js";
 import { EMPTY_MARKET_HINTS, outcomeLabel } from "../lib/labels.js";
+import { OddsValue } from "./OddsValue.jsx";
 
 const ORDER = { home: 0, draw: 1, away: 2 };
-
-function DirectionIcon({ direction }) {
-  if (direction === "up") {
-    return <TrendingUp size={15} aria-hidden="true" />;
-  }
-  if (direction === "down") {
-    return <TrendingDown size={15} aria-hidden="true" />;
-  }
-  return null;
-}
 
 function teamLabel(outcomeKey, home, away, fallback) {
   if (outcomeKey === "home") {
@@ -58,7 +48,7 @@ export function MoneylineCards({
         return (
           <button
             type="button"
-            className={`ml-card ${selected ? "selected" : ""} ${flashDir ? `flash-${flashDir}` : ""}`}
+            className={`ml-card ${selected ? "selected" : ""}`}
             key={key}
             aria-pressed={selected}
             title={selected ? "取消选择" : "选择该赔率"}
@@ -68,14 +58,11 @@ export function MoneylineCards({
               <span className="ml-tag">
                 {outcomeLabel(marketType, row.outcomeKey, row.outcomeName)}
               </span>
-              {row.direction && row.direction !== "flat" ? (
-                <span className={`ml-dir ${row.direction}`}>
-                  <DirectionIcon direction={row.direction} />
-                </span>
-              ) : null}
             </div>
             <div className="ml-team">{teamLabel(row.outcomeKey, home, away, row.outcomeName)}</div>
-            <div className="ml-odds">{formatOdds(row.odds)}</div>
+            <div className="ml-odds">
+              <OddsValue value={row.odds} direction={flashDir} />
+            </div>
             {hasPrev ? (
               <div className={`ml-prev ${row.direction}`}>
                 {formatOdds(row.previousOdds)} → {formatOdds(row.odds)}

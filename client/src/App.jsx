@@ -19,9 +19,10 @@ import {
   X
 } from "lucide-react";
 import { MoneylineCards } from "./components/MoneylineCards.jsx";
+import { OddsValue } from "./components/OddsValue.jsx";
 import { ScoreMatrix } from "./components/ScoreMatrix.jsx";
 import { fetchSnapshot, oddsKey, setWatched } from "./lib/api.js";
-import { formatDateTime, formatOdds, formatTime } from "./lib/format.js";
+import { formatDateTime, formatTime } from "./lib/format.js";
 import { MARKET_LABELS, MARKET_TYPES, statusLabel } from "./lib/labels.js";
 
 const FLASH_MS = 2000;
@@ -559,13 +560,12 @@ function TeamName({ name }) {
 
 function OddsPill({ row, type, label, flash, selectedOdds = new Set(), onToggleOdds = () => {} }) {
   const flashDir = row ? flash[oddsKey(row)] : "";
-  const direction = row?.direction && row.direction !== "flat" ? row.direction : "";
   const selected = row ? selectedOdds.has(oddsKey(row)) : false;
 
   return (
     <button
       type="button"
-      className={`odds-pill ${type} ${selected ? "selected" : ""} ${flashDir ? `flash-${flashDir}` : ""}`}
+      className={`odds-pill ${type} ${selected ? "selected" : ""}`}
       disabled={!row}
       aria-pressed={selected}
       title={selected ? "取消选择" : "选择该赔率"}
@@ -575,8 +575,7 @@ function OddsPill({ row, type, label, flash, selectedOdds = new Set(), onToggleO
       }}
     >
       <span className="odds-label">{label}</span>
-      <strong>{row ? formatOdds(row.odds) : "--"}</strong>
-      {direction ? <span className={`mini-dir ${direction}`}>{direction === "up" ? "↗" : "↘"}</span> : null}
+      <OddsValue value={row?.odds} direction={flashDir} />
     </button>
   );
 }

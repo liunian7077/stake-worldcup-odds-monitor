@@ -662,13 +662,9 @@ button {
   color: #ffe49e;
 }
 
-.odds-pill.selected strong {
+.odds-pill.selected .odds-value {
   color: #ffffff;
   text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
-}
-
-.odds-pill.selected .mini-dir {
-  color: #ffe49e;
 }
 
 .odds-label {
@@ -679,22 +675,62 @@ button {
   font-weight: 720;
 }
 
-.odds-pill strong {
+.odds-pill .odds-value {
   font-size: 16px;
   font-weight: 860;
 }
 
-.mini-dir {
-  font-size: 12px;
-  font-weight: 900;
+.odds-value {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  color: inherit;
+  line-height: 1;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
-.mini-dir.up {
+.odds-number {
+  display: inline-block;
+}
+
+.odds-value.is-flashing .odds-number {
+  animation: odds-number-flash 0.46s ease-in-out 4;
+}
+
+.odds-value.is-flashing.up {
   color: var(--green);
+  text-shadow: 0 0 12px rgba(87, 227, 137, 0.46);
 }
 
-.mini-dir.down {
+.odds-value.is-flashing.down {
   color: var(--red);
+  text-shadow: 0 0 12px rgba(255, 93, 108, 0.46);
+}
+
+.odds-change-badge {
+  width: 15px;
+  height: 15px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 950;
+  line-height: 1;
+  animation: odds-badge-pop 0.34s ease-out;
+}
+
+.odds-change-badge.up {
+  color: #04170c;
+  background: var(--green);
+  box-shadow: 0 0 14px rgba(87, 227, 137, 0.34);
+}
+
+.odds-change-badge.down {
+  color: #220308;
+  background: var(--red);
+  box-shadow: 0 0 14px rgba(255, 93, 108, 0.34);
 }
 
 .heat,
@@ -1136,8 +1172,7 @@ button {
 }
 
 .ml-card.selected .ml-tag,
-.ml-card.selected .ml-prev,
-.ml-card.selected .ml-dir {
+.ml-card.selected .ml-prev {
   color: #ffe49e;
 }
 
@@ -1162,14 +1197,6 @@ button {
   color: var(--muted);
   font-size: 12px;
   font-weight: 760;
-}
-
-.ml-dir.up {
-  color: var(--green);
-}
-
-.ml-dir.down {
-  color: var(--red);
 }
 
 .ml-team {
@@ -1459,16 +1486,29 @@ button {
   text-align: center;
 }
 
-.flash-up {
-  border-color: rgba(87, 227, 137, 0.75) !important;
-  background: rgba(87, 227, 137, 0.2) !important;
-  box-shadow: 0 0 24px rgba(87, 227, 137, 0.16);
+@keyframes odds-number-flash {
+  0%,
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+
+  50% {
+    transform: scale(1.16);
+    filter: brightness(1.35);
+  }
 }
 
-.flash-down {
-  border-color: rgba(255, 93, 108, 0.78) !important;
-  background: rgba(255, 93, 108, 0.2) !important;
-  box-shadow: 0 0 24px rgba(255, 93, 108, 0.16);
+@keyframes odds-badge-pop {
+  0% {
+    opacity: 0;
+    transform: translateX(-4px) scale(0.74);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
 }
 
 .mobile-nav {
@@ -1642,7 +1682,7 @@ button {
     font-size: 12px;
   }
 
-  .odds-pill strong {
+  .odds-pill .odds-value {
     font-size: 14px;
   }
 

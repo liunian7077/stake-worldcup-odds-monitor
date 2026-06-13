@@ -1,6 +1,6 @@
 import { oddsKey } from "../lib/api.js";
-import { formatOdds } from "../lib/format.js";
 import { EMPTY_MARKET_HINTS } from "../lib/labels.js";
+import { OddsValue } from "./OddsValue.jsx";
 
 function parseScoreKey(outcomeKey) {
   const match = /^score:(\d+)_(\d+)$/.exec(outcomeKey ?? "");
@@ -31,13 +31,15 @@ function ScoreOption({ item, flash, selectedOdds, onToggleOdds }) {
   return (
     <button
       type="button"
-      className={`score-option ${selected ? "selected" : ""} ${flashDir ? `flash-${flashDir}` : ""}`}
+      className={`score-option ${selected ? "selected" : ""}`}
       aria-pressed={selected}
       title={selected ? "取消选择" : "选择该比分"}
       onClick={() => onToggleOdds(item)}
     >
       <span className="cell-score">{label}</span>
-      <span className="cell-odds">{formatOdds(item.odds)}</span>
+      <span className="cell-odds">
+        <OddsValue value={item.odds} direction={flashDir} />
+      </span>
     </button>
   );
 }
