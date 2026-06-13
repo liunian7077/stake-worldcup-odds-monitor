@@ -319,7 +319,42 @@ function formatCompact(value) {
   return String(number);
 }
 
+function sourceMinuteLabel(value) {
+  const text = String(value ?? "").trim();
+  if (!text) {
+    return null;
+  }
+
+  const normalized = text.toLowerCase();
+  if (["live", "notstarted", "not started", "null", "none"].includes(normalized)) {
+    return null;
+  }
+  if (["ht", "half-time", "halftime"].includes(normalized)) {
+    return "HT";
+  }
+  if (["ft", "finished", "ended"].includes(normalized)) {
+    return "FT";
+  }
+
+  const match = text.match(/^(\d{1,3})(?:\s*(?:\+|:)\s*(\d{1,2}))?/);
+  if (!match) {
+    return text.toUpperCase();
+  }
+
+  const minute = Number(match[1]);
+  const extra = match[2] ? `+${Number(match[2])}` : "";
+  if (!Number.isFinite(minute)) {
+    return null;
+  }
+  return `${minute}${extra}'`;
+}
+
 function liveMinute(fixture, now) {
+  const fromSource = sourceMinuteLabel(fixture?.score?.timeElapsed);
+  if (fromSource) {
+    return fromSource;
+  }
+
   const start = Number(fixture?.startTime);
   if (!Number.isFinite(start) || fixture?.phase !== "live") {
     return "--";
