@@ -65,6 +65,17 @@ function isCorrectScoreText(text) {
   return text.includes("correct score");
 }
 
+function isCompositeMarketText(text) {
+  return (
+    text.includes("&") ||
+    text.includes(" and ") ||
+    text.includes("both teams to score") ||
+    text.includes("btts") ||
+    text.includes("double chance") ||
+    text.includes("draw no bet")
+  );
+}
+
 function isOneXTwoText(text) {
   return ONE_X_TWO_TERMS.some((term) => text.includes(term));
 }
@@ -83,6 +94,10 @@ function classifyMarket(market, contextText = "") {
 
   if (isCorrectScoreText(name)) {
     return half ? MARKET_TYPES.HALF_TIME_CORRECT_SCORE : MARKET_TYPES.FULL_TIME_CORRECT_SCORE;
+  }
+
+  if (isCompositeMarketText(name)) {
+    return null;
   }
 
   if (isOneXTwoText(name)) {

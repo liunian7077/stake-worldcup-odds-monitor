@@ -228,6 +228,17 @@ export function createDatabase() {
     listCurrentOdds: db.prepare(`
       SELECT * FROM current_odds ORDER BY event_id ASC, market_type ASC, outcome_key ASC
     `),
+    deleteUnsupportedMoneylineOdds: db.prepare(`
+      DELETE FROM current_odds
+      WHERE market_type IN ('full_time_1x2', 'half_time_1x2')
+        AND (
+          market_name LIKE '%&%' OR outcome_name LIKE '%&%' OR
+          lower(market_name) LIKE '%both teams to score%' OR
+          lower(market_name) LIKE '%btts%' OR
+          lower(market_name) LIKE '%double chance%' OR
+          lower(market_name) LIKE '%draw no bet%'
+        )
+    `),
     recentHistory: db.prepare(`
       SELECT h.*, f.start_time
       FROM odds_history h
@@ -237,6 +248,8 @@ export function createDatabase() {
     `),
     countHistory: db.prepare(`SELECT COUNT(*) AS total FROM odds_history`)
   };
+
+  statements.deleteUnsupportedMoneylineOdds.run();
 
   const upsertFixture = (fixture) => {
     const timestamp = nowIso();

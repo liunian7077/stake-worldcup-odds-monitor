@@ -275,6 +275,12 @@ function teamFlag(name) {
 
 function visibleMarketRows(fixture, marketType) {
   return (fixture?.odds?.[marketType] ?? []).filter((row) => {
+    if (
+      [MARKET_TYPES.FULL_TIME_1X2, MARKET_TYPES.HALF_TIME_1X2].includes(marketType) &&
+      (String(row.marketName ?? "").includes("&") || String(row.outcomeName ?? "").includes("&"))
+    ) {
+      return false;
+    }
     return row.active === false || Number(row.odds) > 0;
   });
 }
