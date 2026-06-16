@@ -254,6 +254,26 @@ export function createDatabase() {
     });
   };
 
+  function listFixturesForScoreBackfill() {
+    return statements.listFixtures.all().map((fixture) => {
+      const raw = fromJson(fixture.raw_json, {});
+      return {
+        ...raw,
+        slug: fixture.slug,
+        stakeFixtureId: raw.stakeFixtureId ?? raw.id ?? fixture.stake_fixture_id,
+        name: raw.name ?? fixture.name,
+        status: raw.status ?? fixture.status,
+        startTime: raw.startTime ?? raw.date ?? fixture.start_time,
+        tournament: raw.tournament ?? fixture.tournament,
+        category: raw.category ?? fixture.category,
+        competitors: raw.competitors ?? fromJson(fixture.competitors_json, []),
+        homeScore: raw.homeScore ?? raw.score?.home ?? null,
+        awayScore: raw.awayScore ?? raw.score?.away ?? null,
+        score: raw.score ?? null
+      };
+    });
+  }
+
   // Apply normalized odds rows for a fixture. The first time a given
   // (event_id, market_type, outcome_name) is seen it is stored as a baseline
   // and NOT counted as a change. Returns the list of OddsChange objects.
@@ -437,6 +457,7 @@ export function createDatabase() {
   return {
     db,
     upsertFixture,
+    listFixturesForScoreBackfill,
     applyOddsRows,
     getSnapshot,
     getRecentHistory,

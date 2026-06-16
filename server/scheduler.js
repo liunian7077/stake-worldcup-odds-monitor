@@ -227,6 +227,36 @@ export function createScheduler({ db, stakeClient, scoreClient, sseHub, logger }
     };
   }
 
+  function backfillScoresFromDatabase(processedSlugs) {
+    if (!db.listFixturesForScoreBackfill) {
+      return 0;
+    }
+
+    let matched = 0;
+    let updated = 0;
+    for (const fixture of db.listFixturesForScoreBackfill()) {
+      if (!fixture?.slug || processedSlugs.has(fixture.slug)) {
+        continue;
+      }
+
+      const enriched = applyScoreToFixture(fixture);
+      if (!enriched.match) {
+        continue;
+      }
+
+      matched += 1;
+      if (enriched.changed) {
+        db.upsertFixture(enriched.fixture);
+        updated += 1;
+      }
+    }
+
+    if (updated > 0) {
+      logger.info({ matched, updated }, "score feed backfilled database fixtures");
+    }
+    return updated;
+  }
+
   async function refreshScores() {
     const now = Date.now();
     if (
@@ -256,12 +286,14 @@ export function createScheduler({ db, stakeClient, scoreClient, sseHub, logger }
       scoreBackoffUntil = 0;
       lastScoreSuccessAt = result.at;
       const scoreChanges = [];
+      const processedScoreSlugs = new Set();
       for (const state of fixtures.values()) {
         const enriched = applyScoreToFixture(state.raw);
         if (!enriched.match) {
           continue;
         }
 
+        processedScoreSlugs.add(state.matchId);
         state.raw = enriched.fixture;
         state.status = enriched.fixture.status ?? state.status;
         state.startTime = enriched.fixture.startTime ?? enriched.fixture.date ?? state.startTime;
@@ -278,8 +310,12 @@ export function createScheduler({ db, stakeClient, scoreClient, sseHub, logger }
         }
       }
 
+      const backfilled = backfillScoresFromDatabase(processedScoreSlugs);
       publishScoreChanges(scoreChanges);
-      logger.info({ scores: result.games, changes: scoreChanges.length }, "score feed refreshed");
+      logger.info(
+        { scores: result.games, changes: scoreChanges.length, backfilled },
+        "score feed refreshed"
+      );
     } catch (error) {
       logger.warn({ err: error }, "failed to apply score feed");
     } finally {
