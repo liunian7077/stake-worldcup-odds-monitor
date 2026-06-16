@@ -25,20 +25,26 @@ function sortAwayWin(a, b) {
 function ScoreOption({ item, flash, selectedOdds, onToggleOdds }) {
   const key = oddsKey(item);
   const flashDir = flash[key];
-  const selected = selectedOdds.has(key);
+  const suspended = item.active === false || item.status === "suspended";
+  const selected = !suspended && selectedOdds.has(key);
   const label = item.score ? `${item.score.home}:${item.score.away}` : item.outcomeName;
 
   return (
     <button
       type="button"
-      className={`score-option ${selected ? "selected" : ""}`}
+      className={`score-option ${selected ? "selected" : ""} ${suspended ? "suspended" : ""}`}
       aria-pressed={selected}
-      title={selected ? "取消选择" : "选择该比分"}
-      onClick={() => onToggleOdds(item)}
+      disabled={suspended}
+      title={suspended ? "盘口暂停" : selected ? "取消选择" : "选择该比分"}
+      onClick={() => {
+        if (!suspended) {
+          onToggleOdds(item);
+        }
+      }}
     >
       <span className="cell-score">{label}</span>
       <span className="cell-odds">
-        <OddsValue value={item.odds} direction={flashDir} />
+        <OddsValue value={item.odds} direction={flashDir} suspended={suspended} />
       </span>
     </button>
   );

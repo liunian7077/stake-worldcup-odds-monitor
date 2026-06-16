@@ -136,6 +136,8 @@ function applyChanges(snapshot, changes) {
           ...row,
           odds: change.newOdds,
           previousOdds: change.oldOdds,
+          active: change.active ?? row.active,
+          status: change.status ?? row.status,
           direction: change.direction,
           updatedAt: change.time
         };
@@ -272,9 +274,9 @@ function teamFlag(name) {
 }
 
 function visibleMarketRows(fixture, marketType) {
-  return (fixture?.odds?.[marketType] ?? []).filter(
-    (row) => row.active !== false && Number(row.odds) > 0
-  );
+  return (fixture?.odds?.[marketType] ?? []).filter((row) => {
+    return row.active === false || Number(row.odds) > 0;
+  });
 }
 
 function moneylineRows(fixture) {
@@ -560,22 +562,25 @@ function TeamName({ name }) {
 
 function OddsPill({ row, type, label, flash, selectedOdds = new Set(), onToggleOdds = () => {} }) {
   const flashDir = row ? flash[oddsKey(row)] : "";
-  const selected = row ? selectedOdds.has(oddsKey(row)) : false;
+  const suspended = row?.active === false || row?.status === "suspended";
+  const selected = row && !suspended ? selectedOdds.has(oddsKey(row)) : false;
 
   return (
     <button
       type="button"
-      className={`odds-pill ${type} ${selected ? "selected" : ""}`}
-      disabled={!row}
+      className={`odds-pill ${type} ${selected ? "selected" : ""} ${suspended ? "suspended" : ""}`}
+      disabled={!row || suspended}
       aria-pressed={selected}
-      title={selected ? "取消选择" : "选择该赔率"}
+      title={suspended ? "盘口暂停" : selected ? "取消选择" : "选择该赔率"}
       onClick={(event) => {
         event.stopPropagation();
-        onToggleOdds(row);
+        if (row && !suspended) {
+          onToggleOdds(row);
+        }
       }}
     >
       <span className="odds-label">{label}</span>
-      <OddsValue value={row?.odds} direction={flashDir} />
+      <OddsValue value={row?.odds} direction={flashDir} suspended={suspended} />
     </button>
   );
 }

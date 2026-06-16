@@ -307,14 +307,17 @@ export function createDatabase() {
           continue;
         }
 
-        const changed = Number(existing.odds) !== Number(row.odds);
-        const direction = changed
+        const oddsChanged = Number(existing.odds) !== Number(row.odds);
+        const activeChanged = Number(existing.active) !== active;
+        const shouldNotify = oddsChanged || activeChanged;
+        const oddsDirection = oddsChanged
           ? row.odds > existing.odds
             ? "up"
             : "down"
           : existing.last_direction;
+        const direction = activeChanged ? (active ? "resumed" : "suspended") : oddsDirection;
 
-        if (changed) {
+        if (oddsChanged) {
           const pct = changePercent(Number(existing.odds), Number(row.odds));
           statements.insertHistory.run({
             eventId: row.eventId,
@@ -324,11 +327,14 @@ export function createDatabase() {
             outcomeName: row.outcomeName,
             oldOdds: existing.odds,
             newOdds: row.odds,
-            direction,
+            direction: oddsDirection,
             changePercent: pct,
             timestamp
           });
+        }
 
+        if (shouldNotify) {
+          const pct = oddsChanged ? changePercent(Number(existing.odds), Number(row.odds)) : 0;
           changes.push({
             time: timestamp,
             eventId: row.eventId,
@@ -340,6 +346,9 @@ export function createDatabase() {
             outcomeName: localizeOutcomeName(row.outcomeName),
             oldOdds: existing.odds,
             newOdds: row.odds,
+            oldActive: Boolean(existing.active),
+            active: Boolean(active),
+            status: active ? "active" : "suspended",
             direction,
             changePercent: pct
           });
@@ -352,7 +361,7 @@ export function createDatabase() {
           groupName: row.groupName,
           outcomeKey: row.outcomeKey,
           odds: row.odds,
-          prevOdds: changed ? existing.odds : existing.prev_odds,
+          prevOdds: oddsChanged ? existing.odds : existing.prev_odds,
           active,
           sourceUpdatedAt: row.sourceUpdatedAt,
           direction,

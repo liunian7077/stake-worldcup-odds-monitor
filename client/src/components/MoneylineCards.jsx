@@ -40,19 +40,26 @@ export function MoneylineCards({
       {sorted.map((row) => {
         const key = oddsKey(row);
         const flashDir = flash[key];
-        const selected = selectedOdds.has(key);
+        const suspended = row.active === false || row.status === "suspended";
+        const selected = !suspended && selectedOdds.has(key);
         const hasPrev =
+          !suspended &&
           row.previousOdds !== null &&
           row.previousOdds !== undefined &&
           Number(row.previousOdds) !== Number(row.odds);
         return (
           <button
             type="button"
-            className={`ml-card ${selected ? "selected" : ""}`}
+            className={`ml-card ${selected ? "selected" : ""} ${suspended ? "suspended" : ""}`}
             key={key}
             aria-pressed={selected}
-            title={selected ? "取消选择" : "选择该赔率"}
-            onClick={() => onToggleOdds(row)}
+            disabled={suspended}
+            title={suspended ? "盘口暂停" : selected ? "取消选择" : "选择该赔率"}
+            onClick={() => {
+              if (!suspended) {
+                onToggleOdds(row);
+              }
+            }}
           >
             <div className="ml-card-head">
               <span className="ml-tag">
@@ -61,7 +68,7 @@ export function MoneylineCards({
             </div>
             <div className="ml-team">{teamLabel(row.outcomeKey, home, away, row.outcomeName)}</div>
             <div className="ml-odds">
-              <OddsValue value={row.odds} direction={flashDir} />
+              <OddsValue value={row.odds} direction={flashDir} suspended={suspended} />
             </div>
             {hasPrev ? (
               <div className={`ml-prev ${row.direction}`}>
