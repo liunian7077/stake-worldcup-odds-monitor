@@ -9,11 +9,24 @@ function readInt(name, fallback) {
   return Number.isFinite(value) && value > 0 ? value : fallback;
 }
 
+function readSignedInt(name, fallback) {
+  const value = Number.parseInt(process.env[name] ?? "", 10);
+  return Number.isFinite(value) ? value : fallback;
+}
+
 function readList(name, fallback) {
   return (process.env[name] ?? fallback)
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function readBool(name, fallback) {
+  const value = process.env[name];
+  if (value === undefined) {
+    return fallback;
+  }
+  return ["1", "true", "yes", "on"].includes(value.trim().toLowerCase());
 }
 
 function resolveProjectPath(value) {
@@ -63,6 +76,14 @@ export const config = {
   scoreApiIntervalMs: Math.max(scoreApiConfiguredIntervalMs, scoreApiMinIntervalMs),
   scoreApiTimeoutMs: readInt("SCORE_API_TIMEOUT_MS", Math.min(requestTimeoutMs, 8_000)),
   scoreApiBackoffMs: [10_000, 30_000, 60_000],
+  liveScoreApiBase:
+    process.env.LIVESCORE_API_BASE_URL ?? "https://prod-cdn-public-api.livescore.com",
+  liveScoreLocale: process.env.LIVESCORE_LOCALE ?? "zh",
+  liveScoreTimeZone: process.env.LIVESCORE_TIME_ZONE ?? "Asia/Shanghai",
+  liveScoreTimeZoneOffset: readSignedInt("LIVESCORE_TIMEZONE_OFFSET", 8),
+  liveScoreDateWindowDays: readInt("LIVESCORE_DATE_WINDOW_DAYS", 1),
+  liveScoreEventIds: readList("LIVESCORE_EVENT_IDS", ""),
+  liveScorePrefer: readBool("LIVESCORE_PREFER", true),
 
   databasePath: resolveProjectPath(databasePathRaw),
 

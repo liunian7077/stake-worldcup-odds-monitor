@@ -22,7 +22,7 @@ function normalizeTeamName(value) {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/&/g, " and ")
-    .replace(/['’`]/g, "")
+    .replace(/['\u2019`]/g, "")
     .replace(/[^a-zA-Z0-9]+/g, " ")
     .trim()
     .toLowerCase()
@@ -75,7 +75,7 @@ function isFinished(value) {
   return String(value ?? "").toLowerCase() === "true" || value === true;
 }
 
-function normalizeStatus(game) {
+function normalizeWorldCup26Status(game) {
   if (isFinished(game.finished)) {
     return "finished";
   }
@@ -88,10 +88,10 @@ function normalizeStatus(game) {
   return "notstarted";
 }
 
-function normalizeGame(game) {
+function normalizeWorldCup26Game(game) {
   const homeName = game.home_team_name_en ?? game.home_team_label ?? "";
   const awayName = game.away_team_name_en ?? game.away_team_label ?? "";
-  const status = normalizeStatus(game);
+  const status = normalizeWorldCup26Status(game);
 
   return {
     source: "worldcup26",
@@ -108,6 +108,96 @@ function normalizeGame(game) {
     matchday: game.matchday ?? null,
     localDate: game.local_date ?? null
   };
+}
+
+function isLiveScoreWorldCupStage(stage) {
+  const text = [
+    stage?.Ccd,
+    stage?.Cnm,
+    stage?.Csnm,
+    stage?.CompN,
+    stage?.CompUrlName,
+    stage?.CompD
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  return text.includes("world cup") || text.includes("world-cup") || text.includes("世界杯");
+}
+
+function normalizeLiveScoreStatus(event) {
+  const eps = String(event?.Eps ?? "").trim().toLowerCase();
+  const esid = Number(event?.Esid);
+  if (["ft", "aet", "ap", "pen", "after penalties"].includes(eps) || esid >= 5) {
+    return "finished";
+  }
+  if (eps.includes("'") || eps === "ht" || eps === "live" || esid === 3 || event?.Eact === 1) {
+    return "live";
+  }
+  return "notstarted";
+}
+
+function normalizeLiveScoreEvent(event, stage = event?.Stg ?? null) {
+  const homeTeam = event?.T1?.[0] ?? {};
+  const awayTeam = event?.T2?.[0] ?? {};
+  const status = normalizeLiveScoreStatus(event);
+
+  return {
+    source: "livescore",
+    sourceId: event?.Eid ?? null,
+    sourceUpdatedAt: Date.now(),
+    homeName: homeTeam.NmEn ?? homeTeam.Nm ?? "",
+    awayName: awayTeam.NmEn ?? awayTeam.Nm ?? "",
+    homeScore: parseScore(event?.Tr1),
+    awayScore: parseScore(event?.Tr2),
+    status,
+    finished: status === "finished",
+    timeElapsed: event?.Eps ?? null,
+    group: stage?.Snm ?? null,
+    matchday: stage?.Scd ?? null,
+    localDate: event?.Esd ?? null
+  };
+}
+
+function collectLiveScoreEvents(payload) {
+  if (!payload || typeof payload !== "object") {
+    return [];
+  }
+
+  if (payload.Eid) {
+    return [{ event: payload, stage: payload.Stg ?? null }];
+  }
+
+  const rows = [];
+  for (const stage of payload.Stages ?? []) {
+    if (!isLiveScoreWorldCupStage(stage)) {
+      continue;
+    }
+    for (const event of stage.Events ?? []) {
+      rows.push({ event, stage });
+    }
+  }
+  return rows;
+}
+
+function dateLabelForLiveScore(offsetDays = 0) {
+  const date = new Date(Date.now() + offsetDays * 24 * 60 * 60_000);
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: config.liveScoreTimeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(date);
+  const part = (type) => parts.find((item) => item.type === type)?.value;
+  return `${part("year")}${part("month")}${part("day")}`;
+}
+
+function providerNames() {
+  return String(config.scoreProvider ?? "")
+    .split(",")
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
 }
 
 function scoreChanged(previous, next) {
@@ -127,15 +217,30 @@ function summarizeFetchError(error) {
   };
 }
 
+function mergeScoreMaps(base, override) {
+  const merged = new Map(base);
+  for (const [key, game] of override) {
+    merged.set(key, game);
+  }
+  return merged;
+}
+
 export class WorldCupScoreClient {
   constructor({ logger }) {
     this.logger = logger;
     this.gamesByExactKey = new Map();
+    this.worldCup26GamesByExactKey = new Map();
+    this.liveScoreGamesByExactKey = new Map();
     this.lastSuccessAt = null;
     this.lastError = null;
+    this.providers = providerNames();
+    this.useLiveScore = this.providers.includes("livescore");
+    this.useWorldCup26 =
+      !this.providers.includes("off") &&
+      (this.providers.includes("worldcup26") || (!this.useLiveScore && this.providers.length > 0));
   }
 
-  async refresh() {
+  async refreshWorldCup26() {
     const url = new URL("/get/games", config.scoreApiBase);
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), config.scoreApiTimeoutMs);
@@ -160,25 +265,118 @@ export class WorldCupScoreClient {
       const next = new Map();
 
       for (const game of games) {
-        const normalized = normalizeGame(game);
+        const normalized = normalizeWorldCup26Game(game);
         const exactKey = scoreKey(normalized.homeName, normalized.awayName);
         if (exactKey !== "|") {
           next.set(exactKey, normalized);
         }
       }
 
-      this.gamesByExactKey = next;
-      this.lastSuccessAt = new Date().toISOString();
-      this.lastError = null;
-      return { ok: true, games: next.size, at: this.lastSuccessAt };
+      this.worldCup26GamesByExactKey = next;
+      return { provider: "worldcup26", ok: true, games: next.size, at: new Date().toISOString() };
     } catch (error) {
       const summary = summarizeFetchError(error);
-      this.lastError = { ...summary, at: new Date().toISOString() };
       this.logger.warn({ error: summary }, "failed to refresh world cup score feed");
-      return { ok: false, error: summary };
+      return { provider: "worldcup26", ok: false, error: summary };
     } finally {
       clearTimeout(timeout);
     }
+  }
+
+  async fetchLiveScorePath(pathname) {
+    const url = new URL(pathname, config.liveScoreApiBase);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), config.scoreApiTimeoutMs);
+
+    try {
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          accept: "application/json",
+          "user-agent": "stake-worldcup-odds-monitor/0.2"
+        },
+        signal: controller.signal
+      });
+
+      if (!response.ok) {
+        const body = await response.text().catch(() => "");
+        throw new Error(`LiveScore API ${response.status} ${response.statusText}: ${body.slice(0, 180)}`);
+      }
+
+      return response.json();
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  liveScorePaths() {
+    const paths = [];
+    const tz = config.liveScoreTimeZoneOffset;
+    const locale = encodeURIComponent(config.liveScoreLocale);
+
+    paths.push(`/v1/api/app/live/soccer/${tz}?locale=${locale}&MD=1`);
+    for (let offset = -config.liveScoreDateWindowDays; offset <= config.liveScoreDateWindowDays; offset += 1) {
+      paths.push(`/v1/api/app/date/soccer/${dateLabelForLiveScore(offset)}/${tz}?locale=${locale}&MD=1`);
+    }
+
+    for (const id of config.liveScoreEventIds) {
+      paths.push(`/v1/api/app/scoreboard/soccer/${encodeURIComponent(id)}?locale=${locale}`);
+    }
+
+    return [...new Set(paths)];
+  }
+
+  async refreshLiveScore() {
+    try {
+      const next = new Map();
+      for (const pathname of this.liveScorePaths()) {
+        const payload = await this.fetchLiveScorePath(pathname);
+        for (const { event, stage } of collectLiveScoreEvents(payload)) {
+          const normalized = normalizeLiveScoreEvent(event, stage);
+          const exactKey = scoreKey(normalized.homeName, normalized.awayName);
+          if (exactKey !== "|") {
+            next.set(exactKey, normalized);
+          }
+        }
+      }
+
+      this.liveScoreGamesByExactKey = next;
+      return { provider: "livescore", ok: true, games: next.size, at: new Date().toISOString() };
+    } catch (error) {
+      const summary = summarizeFetchError(error);
+      this.logger.warn({ error: summary }, "failed to refresh LiveScore score feed");
+      return { provider: "livescore", ok: false, error: summary };
+    }
+  }
+
+  async refresh() {
+    const results = [];
+    if (this.useWorldCup26) {
+      results.push(await this.refreshWorldCup26());
+    }
+    if (this.useLiveScore) {
+      results.push(await this.refreshLiveScore());
+    }
+
+    this.gamesByExactKey = config.liveScorePrefer
+      ? mergeScoreMaps(this.worldCup26GamesByExactKey, this.liveScoreGamesByExactKey)
+      : mergeScoreMaps(this.liveScoreGamesByExactKey, this.worldCup26GamesByExactKey);
+
+    const ok = results.some((result) => result.ok) || this.gamesByExactKey.size > 0;
+    if (ok) {
+      this.lastSuccessAt = new Date().toISOString();
+      this.lastError = null;
+      return {
+        ok: true,
+        games: this.gamesByExactKey.size,
+        at: this.lastSuccessAt,
+        providers: results
+      };
+    }
+
+    const error = results.find((result) => !result.ok)?.error ?? { message: "No score provider enabled" };
+    this.lastError = { ...error, at: new Date().toISOString() };
+    return { ok: false, error };
   }
 
   enrichFixture(fixture) {
@@ -231,7 +429,10 @@ export class WorldCupScoreClient {
     return {
       provider: config.scoreProvider,
       baseUrl: config.scoreApiBase,
+      liveScoreBaseUrl: config.liveScoreApiBase,
       cachedGames: this.gamesByExactKey.size,
+      worldCup26CachedGames: this.worldCup26GamesByExactKey.size,
+      liveScoreCachedGames: this.liveScoreGamesByExactKey.size,
       lastSuccessAt: this.lastSuccessAt,
       lastError: this.lastError?.message ?? null,
       lastErrorAt: this.lastError?.at ?? null
