@@ -12,7 +12,6 @@ import {
   RefreshCw,
   Settings,
   ShieldCheck,
-  Star,
   Trophy,
   Wifi,
   WifiOff,
@@ -36,7 +35,7 @@ const OUTCOME_ORDER = { home: 0, draw: 1, away: 2 };
 const NAV_ITEMS = [
   { key: "live", label: "实时比赛", icon: Radio },
   { key: "upcoming", label: "即将开始", icon: CalendarClock },
-  { key: "watch", label: "关注列表", icon: Star },
+  { key: "ended", label: "已结束", icon: ShieldCheck },
   { key: "stats", label: "数据统计", icon: BarChart3 },
   { key: "settings", label: "设置", icon: Settings }
 ];
@@ -50,9 +49,9 @@ const VIEW_COPY = {
     title: "即将开始",
     subtitle: "查看 24 小时以后的完整赛程"
   },
-  watch: {
-    title: "关注列表",
-    subtitle: "集中查看你星标关注的比赛"
+  ended: {
+    title: "已结束",
+    subtitle: "查看刚结束的世界杯比赛最终比分"
   },
   stats: {
     title: "数据统计",
@@ -386,7 +385,7 @@ function isWithinHomeWindow(fixture, now) {
   return Number.isFinite(start) && start >= now && start <= now + HOME_WINDOW_MS;
 }
 
-function buildStats(snapshot, fixtures, followedCount) {
+function buildStats(snapshot, fixtures, endedCount) {
   const scheduler = snapshot?.scheduler ?? {};
   const liveCount = fixtures.filter(isLive).length;
   const upcomingCount = fixtures.filter((fixture) => !isLive(fixture)).length;
@@ -397,7 +396,7 @@ function buildStats(snapshot, fixtures, followedCount) {
     upcomingCount,
     fixtureCount: fixtures.length,
     oddsCount: oddsTotal,
-    followedCount,
+    endedCount,
     roundChanges: scheduler.roundChanges ?? 0,
     totalChanges: scheduler.totalChanges ?? snapshot?.totalChanges ?? 0,
     highFreqCount: scheduler.highFreqCount ?? 0,
@@ -514,7 +513,7 @@ function TopStatusBar({ activeNav, stats, connectionState, onRefresh }) {
         <MetricCard label="今日比赛" value={stats.fixtureCount} tone="neutral" />
         <MetricCard label="首页重点" value={stats.homeCount ?? stats.liveCount} tone="green" />
         <MetricCard label="即将开始" value={stats.upcomingCount} tone="amber" />
-        <MetricCard label="关注比赛" value={stats.followedCount} tone="purple" />
+        <MetricCard label="已结束" value={stats.endedCount} tone="purple" />
       </div>
 
       <div className="top-actions">
@@ -658,11 +657,9 @@ function LiveMatchCard({
   fixture,
   flash,
   now,
-  followed,
   reminded,
   selectedOdds,
   onOpen,
-  onToggleFollow,
   onToggleRemind,
   onToggleOdds
 }) {
@@ -706,17 +703,6 @@ function LiveMatchCard({
         <div className="card-actions">
           <button
             type="button"
-            className={`tiny-icon ${followed ? "active" : ""}`}
-            aria-label="关注比赛"
-            onClick={(event) => {
-              event.stopPropagation();
-              onToggleFollow(fixture);
-            }}
-          >
-            <Star size={16} aria-hidden="true" />
-          </button>
-          <button
-            type="button"
             className={`tiny-icon ${reminded ? "active" : ""}`}
             aria-label="赔率提醒"
             onClick={(event) => {
@@ -736,11 +722,9 @@ function LiveMatches({
   fixtures,
   flash,
   now,
-  followed,
   reminded,
   selectedOdds,
   onOpen,
-  onToggleFollow,
   onToggleRemind,
   onToggleOdds
 }) {
@@ -754,12 +738,10 @@ function LiveMatches({
               fixture={fixture}
               flash={flash}
               now={now}
-              followed={followed.has(fixture.slug) || fixture.isWatched}
               reminded={reminded.has(fixture.slug)}
               selectedOdds={selectedOdds}
               key={fixture.slug}
               onOpen={onOpen}
-              onToggleFollow={onToggleFollow}
               onToggleRemind={onToggleRemind}
               onToggleOdds={onToggleOdds}
             />
@@ -780,11 +762,9 @@ function UpcomingMatches({
   fixtures,
   flash,
   now,
-  followed,
   reminded,
   selectedOdds,
   onOpen,
-  onToggleFollow,
   onToggleRemind,
   onToggleOdds,
   title = "即将开始的比赛",
@@ -840,10 +820,8 @@ function UpcomingMatches({
                       <td>
                         <RowActions
                           fixture={fixture}
-                          followed={followed.has(fixture.slug) || fixture.isWatched}
                           reminded={reminded.has(fixture.slug)}
                           onOpen={onOpen}
-                          onToggleFollow={onToggleFollow}
                           onToggleRemind={onToggleRemind}
                         />
                       </td>
@@ -878,10 +856,8 @@ function UpcomingMatches({
                     <span>更新 {formatDateTime(fixture.lastSuccessAt ?? fixture.updatedAt)}</span>
                     <RowActions
                       fixture={fixture}
-                      followed={followed.has(fixture.slug) || fixture.isWatched}
                       reminded={reminded.has(fixture.slug)}
                       onOpen={onOpen}
-                      onToggleFollow={onToggleFollow}
                       onToggleRemind={onToggleRemind}
                     />
                   </div>
@@ -901,20 +877,60 @@ function UpcomingMatches({
   );
 }
 
-function RowActions({ fixture, followed, reminded, onOpen, onToggleFollow, onToggleRemind }) {
+function EndedMatches({ fixtures, now }) {
+  return (
+    <section className="panel ended-section" id="ended-section">
+      <SectionHeader icon={ShieldCheck} title="已结束的比赛" badge={`${fixtures.length} 场`} />
+
+      {fixtures.length ? (
+        <div className="ended-grid">
+          {fixtures.map((fixture) => {
+            const [home, away] = fixtureTeams(fixture);
+            const homeScore = fixture.homeScore ?? fixture.score?.home ?? fixture.score?.homeScore;
+            const awayScore = fixture.awayScore ?? fixture.score?.away ?? fixture.score?.awayScore;
+            const finalTime = fixture.score?.timeElapsed === "FT" ? "FT" : statusLabel(fixture.status, fixture.phase);
+
+            return (
+              <article className="ended-card" key={fixture.slug}>
+                <div className="ended-card-top">
+                  <span>{formatStartTime(fixture.startTime, new Date(now))}</span>
+                  <strong>{finalTime}</strong>
+                </div>
+                <div className="ended-scoreline">
+                  <div className="ended-team">
+                    <TeamName name={home} />
+                  </div>
+                  <div className="ended-score">
+                    <strong>{Number.isFinite(Number(homeScore)) ? homeScore : "-"}</strong>
+                    <span>-</span>
+                    <strong>{Number.isFinite(Number(awayScore)) ? awayScore : "-"}</strong>
+                  </div>
+                  <div className="ended-team right">
+                    <TeamName name={away} />
+                  </div>
+                </div>
+                <div className="ended-meta">
+                  <span>{fixture.tournament || "世界杯 2026"}</span>
+                  <span>最终比分</span>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="empty-panel">
+          <ShieldCheck size={28} aria-hidden="true" />
+          <strong>暂无已结束比赛</strong>
+          <span>比赛结束后会显示在这里，只保留最终比分。</span>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function RowActions({ fixture, reminded, onOpen, onToggleRemind }) {
   return (
     <div className="row-actions">
-      <button
-        type="button"
-        className={`tiny-icon ${followed ? "active" : ""}`}
-        aria-label="关注比赛"
-        onClick={(event) => {
-          event.stopPropagation();
-          onToggleFollow(fixture);
-        }}
-      >
-        <Star size={16} aria-hidden="true" />
-      </button>
       <button
         type="button"
         className={`tiny-icon ${reminded ? "active" : ""}`}
@@ -941,7 +957,7 @@ function RowActions({ fixture, followed, reminded, onOpen, onToggleFollow, onTog
   );
 }
 
-function InfoPanels({ stats, followedFixtures, connectionState }) {
+function InfoPanels({ stats, endedFixtures, connectionState }) {
   return (
     <div className="info-grid" id="stats-section">
       <section className="panel info-panel">
@@ -955,18 +971,18 @@ function InfoPanels({ stats, followedFixtures, connectionState }) {
       </section>
 
       <section className="panel info-panel">
-        <SectionHeader icon={Star} title="关注的比赛" />
-        {followedFixtures.length ? (
+        <SectionHeader icon={ShieldCheck} title="最近结束" />
+        {endedFixtures.length ? (
           <div className="follow-list">
-            {followedFixtures.slice(0, 4).map((fixture) => (
+            {endedFixtures.slice(0, 4).map((fixture) => (
               <button type="button" key={fixture.slug} className="follow-row">
                 <span>{fixture.name}</span>
-                <strong>{statusLabel(fixture.status, fixture.phase)}</strong>
+                <strong>{fixture.homeScore ?? "-"} - {fixture.awayScore ?? "-"}</strong>
               </button>
             ))}
           </div>
         ) : (
-          <div className="quiet-empty">点击星标后会显示在这里。</div>
+          <div className="quiet-empty">比赛结束后会显示在这里。</div>
         )}
       </section>
 
@@ -1124,7 +1140,6 @@ export default function App() {
   const [error, setError] = React.useState("");
   const [activeNav, setActiveNav] = React.useState("live");
   const [detailSlug, setDetailSlug] = React.useState("");
-  const [followed, setFollowed] = React.useState(() => new Set());
   const [reminded, setReminded] = React.useState(() => new Set());
   const [selectedOdds, setSelectedOdds] = React.useState(readSelectedOdds);
   const flashTimers = React.useRef(new Map());
@@ -1229,12 +1244,22 @@ export default function App() {
     };
   }, []);
 
-  const allFixtures = React.useMemo(() => {
+  const enrichedFixtures = React.useMemo(() => {
     return enrichFixtures(snapshot)
-      .filter((fixture) => !isEnded(fixture))
       .sort((a, b) => Number(a.startTime ?? 0) - Number(b.startTime ?? 0));
   }, [snapshot]);
 
+  const allFixtures = React.useMemo(
+    () => enrichedFixtures.filter((fixture) => !isEnded(fixture)),
+    [enrichedFixtures]
+  );
+  const endedFixtures = React.useMemo(
+    () =>
+      enrichedFixtures
+        .filter(isEnded)
+        .sort((a, b) => Number(b.startTime ?? 0) - Number(a.startTime ?? 0)),
+    [enrichedFixtures]
+  );
   const homeFixtures = React.useMemo(
     () => allFixtures.filter((fixture) => isLive(fixture) || isWithinHomeWindow(fixture, now)),
     [allFixtures, now]
@@ -1243,17 +1268,13 @@ export default function App() {
     () => allFixtures.filter((fixture) => !isLive(fixture) && !isWithinHomeWindow(fixture, now)),
     [allFixtures, now]
   );
-  const followedFixtures = React.useMemo(
-    () => allFixtures.filter((fixture) => followed.has(fixture.slug) || fixture.isWatched),
-    [allFixtures, followed]
-  );
   const stats = React.useMemo(
     () => ({
-      ...buildStats(snapshot, allFixtures, followedFixtures.length),
+      ...buildStats(snapshot, allFixtures, endedFixtures.length),
       homeCount: homeFixtures.length,
       upcomingCount: upcomingFixtures.length
     }),
-    [snapshot, allFixtures, followedFixtures.length, homeFixtures.length, upcomingFixtures.length]
+    [snapshot, allFixtures, endedFixtures.length, homeFixtures.length, upcomingFixtures.length]
   );
   const detailFixture = allFixtures.find((fixture) => fixture.slug === detailSlug) ?? null;
 
@@ -1272,19 +1293,6 @@ export default function App() {
     const timer = window.setInterval(refresh, 2000);
     return () => window.clearInterval(timer);
   }, [detailSlug, refresh]);
-
-  const toggleFollow = React.useCallback((fixture) => {
-    setFollowed((current) => {
-      const next = new Set(current);
-      if (next.has(fixture.slug)) {
-        next.delete(fixture.slug);
-      } else {
-        next.add(fixture.slug);
-        setWatched(fixture.slug);
-      }
-      return next;
-    });
-  }, []);
 
   const toggleRemind = React.useCallback((fixture) => {
     setReminded((current) => {
@@ -1342,11 +1350,9 @@ export default function App() {
                 fixtures={homeFixtures}
                 flash={flash}
                 now={now}
-                followed={followed}
                 reminded={reminded}
                 selectedOdds={selectedOdds}
                 onOpen={openFixture}
-                onToggleFollow={toggleFollow}
                 onToggleRemind={toggleRemind}
                 onToggleOdds={toggleOddsSelection}
               />
@@ -1357,39 +1363,22 @@ export default function App() {
                 fixtures={upcomingFixtures}
                 flash={flash}
                 now={now}
-                followed={followed}
                 reminded={reminded}
                 selectedOdds={selectedOdds}
                 onOpen={openFixture}
-                onToggleFollow={toggleFollow}
                 onToggleRemind={toggleRemind}
                 onToggleOdds={toggleOddsSelection}
               />
             ) : null}
 
-            {activeNav === "watch" ? (
-              <UpcomingMatches
-                fixtures={followedFixtures}
-                flash={flash}
-                now={now}
-                followed={followed}
-                reminded={reminded}
-                selectedOdds={selectedOdds}
-                onOpen={openFixture}
-                onToggleFollow={toggleFollow}
-                onToggleRemind={toggleRemind}
-                onToggleOdds={toggleOddsSelection}
-                title="关注列表"
-                actionLabel=""
-                emptyTitle="还没有关注比赛"
-                emptyText="点击比赛右侧的星标后，会在这里集中显示。"
-              />
+            {activeNav === "ended" ? (
+              <EndedMatches fixtures={endedFixtures} now={now} />
             ) : null}
 
             {activeNav === "stats" ? (
               <InfoPanels
                 stats={stats}
-                followedFixtures={followedFixtures}
+                endedFixtures={endedFixtures}
                 connectionState={connectionState}
               />
             ) : null}

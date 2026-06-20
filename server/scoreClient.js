@@ -129,12 +129,15 @@ function isLiveScoreWorldCupStage(stage) {
 function normalizeLiveScoreStatus(event) {
   const eps = String(event?.Eps ?? "").trim().toLowerCase();
   const esid = Number(event?.Esid);
-  if (["ft", "aet", "ap", "pen", "after penalties"].includes(eps) || esid >= 5) {
-    return "finished";
-  }
+
   if (eps.includes("'") || eps === "ht" || eps === "live" || esid === 3 || event?.Eact === 1) {
     return "live";
   }
+
+  if (["ft", "aet", "ap", "pen", "after penalties"].includes(eps)) {
+    return "finished";
+  }
+
   return "notstarted";
 }
 

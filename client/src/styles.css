@@ -491,8 +491,16 @@ button {
   padding: 18px;
 }
 
+.ended-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  padding: 18px;
+}
+
 .live-card,
-.upcoming-card {
+.upcoming-card,
+.ended-card {
   min-width: 0;
   border: 1px solid var(--border);
   background:
@@ -507,8 +515,16 @@ button {
   padding: 16px;
 }
 
+.ended-card {
+  padding: 14px;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(61, 214, 255, 0.08), transparent 16rem),
+    linear-gradient(160deg, rgba(20, 31, 48, 0.86), rgba(10, 18, 31, 0.93));
+}
+
 .live-card:hover,
-.upcoming-card:hover {
+.upcoming-card:hover,
+.ended-card:hover {
   transform: translateY(-2px);
   border-color: rgba(61, 214, 255, 0.36);
   box-shadow: 0 18px 48px rgba(0, 0, 0, 0.24), 0 0 26px rgba(61, 214, 255, 0.08);
@@ -517,11 +533,56 @@ button {
 .live-card-top,
 .live-card-foot,
 .upcoming-card-head,
-.upcoming-card-foot {
+.upcoming-card-foot,
+.ended-card-top,
+.ended-meta {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+}
+
+.ended-card-top,
+.ended-meta {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.ended-card-top strong {
+  color: var(--green);
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.ended-scoreline {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.ended-team {
+  min-width: 0;
+}
+
+.ended-team.right .team-name {
+  justify-content: flex-end;
+}
+
+.ended-score {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: #ffffff;
+  font-size: 27px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.ended-score span {
+  color: var(--muted);
+  font-weight: 650;
 }
 
 .minute-pill {
@@ -1690,8 +1751,24 @@ button {
     padding: 12px;
   }
 
+  .ended-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    padding: 12px;
+  }
+
   .live-card {
     padding: 13px;
+  }
+
+  .ended-scoreline {
+    gap: 8px;
+    margin: 13px 0;
+  }
+
+  .ended-score {
+    gap: 7px;
+    font-size: 24px;
   }
 
   .teams-score {
