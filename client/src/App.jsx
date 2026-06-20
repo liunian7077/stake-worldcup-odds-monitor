@@ -33,11 +33,11 @@ const SELECTED_ODDS_STORAGE_KEY = "stake-worldcup:selected-odds:v1";
 const OUTCOME_ORDER = { home: 0, draw: 1, away: 2 };
 
 const NAV_ITEMS = [
-  { key: "live", label: "实时比赛", icon: Radio },
-  { key: "upcoming", label: "即将开始", icon: CalendarClock },
-  { key: "ended", label: "已结束", icon: ShieldCheck },
-  { key: "stats", label: "数据统计", icon: BarChart3 },
-  { key: "settings", label: "设置", icon: Settings }
+  { key: "live", label: "实时比赛", mobileLabel: "实时", icon: Radio },
+  { key: "upcoming", label: "即将开始", mobileLabel: "赛程", icon: CalendarClock },
+  { key: "ended", label: "已结束", mobileLabel: "完赛", icon: ShieldCheck },
+  { key: "stats", label: "数据统计", mobileLabel: "统计", icon: BarChart3 },
+  { key: "settings", label: "设置", mobileLabel: "设置", icon: Settings }
 ];
 
 const VIEW_COPY = {
@@ -470,7 +470,7 @@ function MobileNav({ activeNav, onNav }) {
             onClick={() => onNav(item.key)}
           >
             <Icon size={18} aria-hidden="true" />
-            <span>{item.label}</span>
+            <span>{item.mobileLabel ?? item.label}</span>
           </button>
         );
       })}
@@ -491,8 +491,9 @@ function ConnectionBadge({ state }) {
 
 function TopStatusBar({ activeNav, stats, connectionState, onRefresh }) {
   const copy = VIEW_COPY[activeNav] ?? VIEW_COPY.live;
+  const isLiveView = activeNav === "live";
   return (
-    <header className="top-status">
+    <header className={`top-status ${isLiveView ? "compact" : ""}`}>
       <div className="title-block">
         <div className="title-line">
           <h1>{copy.title}</h1>
@@ -501,27 +502,31 @@ function TopStatusBar({ activeNav, stats, connectionState, onRefresh }) {
         <p>{copy.subtitle}</p>
       </div>
 
-      <div className="status-cards">
-        <div className="countdown-card">
-          <Clock3 size={26} aria-hidden="true" />
-          <div>
-            <span>刷新方式</span>
-            <strong>SSE 实时推送</strong>
-            <small>后台自动轮询 Stake 赔率</small>
+      {!isLiveView ? (
+        <div className="status-cards">
+          <div className="countdown-card">
+            <Clock3 size={26} aria-hidden="true" />
+            <div>
+              <span>刷新方式</span>
+              <strong>SSE 实时推送</strong>
+              <small>后台自动轮询 Stake 赔率</small>
+            </div>
           </div>
+          <MetricCard label="今日比赛" value={stats.fixtureCount} tone="neutral" />
+          <MetricCard label="首页重点" value={stats.homeCount ?? stats.liveCount} tone="green" />
+          <MetricCard label="即将开始" value={stats.upcomingCount} tone="amber" />
+          <MetricCard label="已结束" value={stats.endedCount} tone="purple" />
         </div>
-        <MetricCard label="今日比赛" value={stats.fixtureCount} tone="neutral" />
-        <MetricCard label="首页重点" value={stats.homeCount ?? stats.liveCount} tone="green" />
-        <MetricCard label="即将开始" value={stats.upcomingCount} tone="amber" />
-        <MetricCard label="已结束" value={stats.endedCount} tone="purple" />
-      </div>
+      ) : null}
 
-      <div className="top-actions">
-        <ConnectionBadge state={connectionState} />
-        <button type="button" className="icon-action" onClick={onRefresh} aria-label="刷新数据">
-          <RefreshCw size={18} aria-hidden="true" />
-        </button>
-      </div>
+      {!isLiveView ? (
+        <div className="top-actions">
+          <ConnectionBadge state={connectionState} />
+          <button type="button" className="icon-action" onClick={onRefresh} aria-label="刷新数据">
+            <RefreshCw size={18} aria-hidden="true" />
+          </button>
+        </div>
+      ) : null}
     </header>
   );
 }
@@ -730,7 +735,7 @@ function LiveMatches({
 }) {
   return (
     <section className="panel live-section" id="live-section">
-      <SectionHeader icon={Activity} title="实时与近 24 小时" badge="重点" />
+      <SectionHeader icon={Activity} title="实时比赛" badge="LIVE" />
       {fixtures.length ? (
         <div className="live-grid">
           {fixtures.map((fixture) => (
@@ -1332,12 +1337,14 @@ export default function App() {
       />
 
       <main className="main-shell">
-        <TopStatusBar
-          activeNav={activeNav}
-          stats={stats}
-          connectionState={connectionState}
-          onRefresh={refresh}
-        />
+        {activeNav !== "live" ? (
+          <TopStatusBar
+            activeNav={activeNav}
+            stats={stats}
+            connectionState={connectionState}
+            onRefresh={refresh}
+          />
+        ) : null}
 
         {error ? <div className="error-banner">{error}</div> : null}
 
