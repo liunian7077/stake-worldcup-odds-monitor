@@ -385,7 +385,7 @@ export function createScheduler({ db, stakeClient, scoreClient, sseHub, logger }
             db.upsertFixture(enriched);
             state.status = enriched.status ?? state.status;
             state.startTime = enriched.startTime ?? enriched.date ?? state.startTime;
-            const changes = db.applyOddsRows(odds);
+            const changes = db.applyOddsRows(odds, enriched);
             roundChanges = changes.length;
             publishChanges(changes);
           }

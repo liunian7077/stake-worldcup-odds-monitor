@@ -228,6 +228,11 @@ export function createDatabase() {
     listCurrentOdds: db.prepare(`
       SELECT * FROM current_odds ORDER BY event_id ASC, market_type ASC, outcome_key ASC
     `),
+    listActiveCurrentOddsForEvent: db.prepare(`
+      SELECT * FROM current_odds
+      WHERE event_id = @eventId AND active = 1
+      ORDER BY market_type ASC, outcome_key ASC
+    `),
     deleteUnsupportedMoneylineOdds: db.prepare(`
       DELETE FROM current_odds
       WHERE market_type IN ('full_time_1x2', 'half_time_1x2')
@@ -290,8 +295,11 @@ export function createDatabase() {
   // Apply normalized odds rows for a fixture. The first time a given
   // (event_id, market_type, outcome_name) is seen it is stored as a baseline
   // and NOT counted as a change. Returns the list of OddsChange objects.
-  const applyOddsRows = (rows) => {
+  const applyOddsRows = (rows, fixture = null) => {
     const changes = [];
+    const seenKeys = new Set(
+      rows.map((row) => `${row.eventId}\u0000${row.marketType}\u0000${row.outcomeName}`)
+    );
 
     db.exec("BEGIN");
     try {
@@ -380,6 +388,51 @@ export function createDatabase() {
           direction,
           timestamp
         });
+      }
+
+      if (fixture?.slug) {
+        const timestamp = nowIso();
+        for (const existing of statements.listActiveCurrentOddsForEvent.all({ eventId: fixture.slug })) {
+          const keyString = `${existing.event_id}\u0000${existing.market_type}\u0000${existing.outcome_name}`;
+          if (seenKeys.has(keyString)) {
+            continue;
+          }
+
+          statements.updateCurrentOdd.run({
+            eventId: existing.event_id,
+            marketType: existing.market_type,
+            outcomeName: existing.outcome_name,
+            marketName: existing.market_name,
+            marketDisplayName: existing.market_display_name,
+            groupName: existing.group_name,
+            outcomeKey: existing.outcome_key,
+            odds: existing.odds,
+            prevOdds: existing.prev_odds,
+            active: 0,
+            sourceUpdatedAt: existing.source_updated_at,
+            direction: "suspended",
+            timestamp
+          });
+
+          changes.push({
+            time: timestamp,
+            eventId: existing.event_id,
+            matchName: localizeFixtureName(fixture.name ?? existing.event_id),
+            fixtureStartTime: fixture.startTime ?? fixture.date ?? null,
+            marketType: existing.market_type,
+            marketDisplayName:
+              existing.market_display_name ?? MARKET_DISPLAY_NAMES[existing.market_type],
+            outcomeKey: existing.outcome_key,
+            outcomeName: localizeOutcomeName(existing.outcome_name),
+            oldOdds: existing.odds,
+            newOdds: existing.odds,
+            oldActive: true,
+            active: false,
+            status: "suspended",
+            direction: "suspended",
+            changePercent: 0
+          });
+        }
       }
 
       db.exec("COMMIT");

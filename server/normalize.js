@@ -49,6 +49,18 @@ const HALF_TIME_TERMS = [
   "(ht)"
 ];
 
+const UNSUPPORTED_MARKET_TERMS = [
+  "2nd half",
+  "second half",
+  "2nd-half",
+  "second-half",
+  "minutes",
+  "minute",
+  "corner",
+  "booking",
+  "card"
+];
+
 function clean(value) {
   return String(value ?? "").trim();
 }
@@ -80,6 +92,11 @@ function isOneXTwoText(text) {
   return ONE_X_TWO_TERMS.some((term) => text.includes(term));
 }
 
+function isUnsupportedPeriodOrSideMarket(name, contextText) {
+  const text = `${name} ${contextText}`;
+  return UNSUPPORTED_MARKET_TERMS.some((term) => text.includes(term));
+}
+
 // Classify a market into one of the 4 supported types, or null if unsupported.
 // `contextText` lets the group/period name influence half-time detection when
 // the market name alone does not carry the period.
@@ -91,6 +108,10 @@ function classifyMarket(market, contextText = "") {
   const name = normalizeText(market.name);
   const haystack = `${name} ${contextText}`;
   const half = isHalfTimeText(haystack);
+
+  if (isUnsupportedPeriodOrSideMarket(name, contextText)) {
+    return null;
+  }
 
   if (isCorrectScoreText(name)) {
     return half ? MARKET_TYPES.HALF_TIME_CORRECT_SCORE : MARKET_TYPES.FULL_TIME_CORRECT_SCORE;
